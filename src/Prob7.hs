@@ -1,3 +1,4 @@
+{-# LANGUAGE NumericUnderscores #-}
 module Prob7 where
 
 import Text.Megaparsec hiding (State)
@@ -64,6 +65,14 @@ solution folders =
   map (size . addSubFoldersSize folders) folders
 
 addSubFoldersSize :: [Folder] -> Folder -> Folder
-addSubFoldersSize folders (Folder fpath _) = 
+addSubFoldersSize folders (Folder fpath _) =
   let newSize = sum $ map size $ filter (isSuffixOf fpath . path) folders
   in Folder fpath newSize
+
+solution' :: [Folder] -> Int
+solution' folders =
+  let foldersSizes = map (size . addSubFoldersSize folders) folders
+      usedSpace = head foldersSizes
+      availableSpace = 70_000_000 - usedSpace
+      requiredSpace = 30_000_000 - availableSpace
+      in minimum $ filter (>= requiredSpace) foldersSizes
