@@ -57,3 +57,27 @@ updateCoordinate (hx, hy) (tx, ty)
  | otherwise = (tx + normalize (hx-tx), ty + normalize (hy-ty))
  where normalize 0 = 0
        normalize n = n `div` abs n
+
+data ProbState' = PS' {
+  headPos' :: Position,
+  tailsPos' :: [Position],
+  tailHist':: S.Set Position
+}
+
+solution' :: [Direction] -> Int
+solution' = let
+  hPos = (0, 0)
+  tsPos = replicate 9 (0, 0)
+  tHist = S.singleton (0,0)
+  in S.size . tailHist' . foldl' applyDirection' (PS' hPos tsPos tHist)
+
+applyDirection' :: ProbState' -> Direction -> ProbState'
+applyDirection' (PS' (hx, hy) tsPos tHist) dir =
+  let newHeadPos = case dir of
+        MUp    -> (hx, hy+1)
+        MDown  -> (hx, hy-1)
+        MLeft  -> (hx+1, hy)
+        MRight -> (hx-1, hy)
+      newTailsPos = init $ foldr (\tPos (hPos:rest) -> updateCoordinate hPos tPos:hPos:rest) [newHeadPos] tsPos
+      newTailHist = S.insert (head newTailsPos) tHist
+  in PS' newHeadPos newTailsPos newTailHist

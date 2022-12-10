@@ -8,4 +8,4 @@ main = do
   let input = parse inputParser "input.txt" contents
   case input of
     Left err -> putStrLn $ errorBundlePretty err
-    Right value -> print $ solution value
+    Right value -> print $ solution' value
