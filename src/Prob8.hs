@@ -9,7 +9,7 @@ import Data.Bifunctor (bimap)
 type Parser = Parsec Void String
 
 
-inputParser :: Parsec Void String [[Int]]
+inputParser :: Parser [[Int]]
 inputParser = many (read . singleton <$> anySingleBut '\n') `sepBy` newline
 
 solution :: [[Int]] -> Int
