@@ -25,6 +25,7 @@ source-repository head
 library
   exposed-modules:
       Prob1
+      Prob10
       Prob2
       Prob3
       Prob4
