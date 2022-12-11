@@ -76,6 +76,31 @@ playTurn (nm, Monkey operation test) = do
   sendToOtherMonkeys test operatedItems
   modify (S.update nm [])
   pure $ length items
+  
+  
+solution' :: [([Int], Monkey)] -> Int
+solution' monkeysWithStartingItems = let
+  initialConditions = S.fromList $ fmap fst monkeysWithStartingItems
+  monkeys = fmap snd monkeysWithStartingItems
+  in product $ take 2 $ sortOn Down $ evalState (playRounds' monkeys) initialConditions
+
+playRounds' :: [Monkey] -> State (S.Seq [Int]) [Int]
+playRounds' monkeys = foldr1 (zipWith (+)) <$> replicateM 10000 (playRound' monkeys)
+  
+playRound' :: [Monkey] -> State (S.Seq [Int]) [Int]
+playRound' monkeys = do
+  let maxWorry = product $ fmap (\(Monkey _ (ThrowTest d _ _)) -> d) monkeys
+      monkeysWithNm = zip ([0..]::[Int]) monkeys
+      plays = fmap (playTurn' maxWorry) monkeysWithNm
+  sequence plays
+
+playTurn' :: Int -> (Int, Monkey) -> State (S.Seq [Int]) Int
+playTurn' maxWorry (nm, Monkey operation test) = do
+  items <- gets (`S.index` nm)
+  let operatedItems = fmap ((`mod` maxWorry ). doOperation operation) items
+  sendToOtherMonkeys test operatedItems
+  modify (S.update nm [])
+  pure $ length items
 
 doOperation :: Operation -> Int -> Int
 doOperation (Add a) v = v + a
