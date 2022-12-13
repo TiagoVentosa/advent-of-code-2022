@@ -23,6 +23,7 @@ dependencies:
 - mtl
 - containers
 - split
+- matrix
 
 ghc-options:
 - -Wall
