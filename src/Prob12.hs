@@ -5,9 +5,11 @@ import Text.Megaparsec hiding (State)
 import Data.Matrix as M
 import Data.Char (ord)
 import Text.Megaparsec.Char (newline)
-import Data.List (elemIndex, sortBy, sortOn)
+import Data.List (elemIndex, elemIndices)
 import Data.Maybe (isJust, fromJust, mapMaybe)
-import Data.Foldable (foldlM, foldrM)
+import Control.Monad.State (get, modify, State, evalState)
+import qualified Data.Set as S
+import Data.Foldable (traverse_)
 
 type Parser = Parsec Void String
 
@@ -18,25 +20,31 @@ inputParser :: Parser [String]
 inputParser = restOfLine `sepBy` newline
 
 type Position = (Int, Int)
+type Path = [Position]
+type PathsState = State (S.Set Position) -- already visited positions
 
-solution :: [String] -> Int
+solution :: [String] -> (Path, Int)
 solution matrixList = let
   startPos = findStart matrixList
   endPos = findEnd matrixList
   heightMap = M.fromLists $ fmap (fmap toHeight) matrixList
-  in minimum $ length <$> findPaths startPos endPos heightMap
+  in findShortestPath startPos endPos heightMap
+--  in undefined
 
 findStart :: [String] -> Position
 findStart = find 'S'
+
+findStarts' :: [String] -> [Position]
+findStarts' heightMap = find 'S' heightMap : find' 'a' heightMap
 
 findEnd :: [String] -> Position
 findEnd = find 'E'
 
 find :: Char -> [String] -> Position
 find char matrixList = let
-  first = fmap (elemIndex char) matrixList
-  column = (!! 0) $ filter isJust first
-  line = elemIndex column first
+  firstStep = fmap (elemIndex char) matrixList
+  column = (!! 0) $ filter isJust firstStep
+  line = elemIndex column firstStep
   in (fromJust line + 1, fromJust column + 1)
 
 toHeight :: Char -> Int
@@ -44,26 +52,36 @@ toHeight 'S' = 0
 toHeight 'E' = 25
 toHeight l = ord l - ord 'a'
 
-findPaths :: Position -> Position -> M.Matrix Int -> [[Position]]
-findPaths start end heighMap =
-  go [start]
-  where go route
-          | head route == end = pure route
-          | otherwise =  calculateNextRoutes heighMap route >>= go
+findShortestPath :: Position -> Position -> M.Matrix Int -> (Path, Int)
+findShortestPath start end heightMap =
+--  undefined
+  evalState (findPathsAndLength start end heightMap) $ S.singleton start
 
+findPathsAndLength :: Position -> Position -> M.Matrix Int -> PathsState (Path, Int)
+findPathsAndLength start end heightMap =
+  go 0 [[start]]
+    where go iteration routes
+            | end `elem` fmap head routes = let
+              route = head $ filter ((== end) . head) routes
+              in pure (route, iteration)
+            | otherwise = do
+               res <- traverse (calculateNextRoutes heightMap) routes :: PathsState [[Path]]
+               go (iteration + 1) $ concat res
 
-calculateNextRoutes :: M.Matrix Int -> [Position] -> [[Position]]
+calculateNextRoutes :: M.Matrix Int -> Path -> PathsState [Path]
 calculateNextRoutes _ [] = error "shouldn't be called"
-calculateNextRoutes heighMap currPath@((row, col):_) =
-  let up = (row - 1, col)
-      down = (row + 1, col)
-      left = (row, col - 1)
-      right = (row, col + 1)
-      unexploredRoutes = filter (`notElem` currPath) [up, down, left, right]
-      validPaths = mapMaybe eliminateInvalidPath $ zip unexploredRoutes $
-        fmap (flip (uncurry M.safeGet) heighMap) unexploredRoutes
-  in fmap (:currPath) validPaths
-    where eliminateInvalidPath (_, Nothing) = Nothing
-          eliminateInvalidPath (pos, Just height)
-            | (height - heighMap M.! (row, col)) > 1 = Nothing
-            | otherwise = Just pos
+calculateNextRoutes heighMap currPath@((row, col):_) = do
+  exploredPositions <- get
+  let nextPos = [(row - 1, col), (row + 1, col), (row, col - 1), (row, col + 1)]
+      validPaths = filter (`S.notMember` exploredPositions) $
+        mapMaybe eliminateInvalidPath $
+        zip nextPos $
+        fmap getHeight nextPos
+  traverse_ (modify .  S.insert) validPaths
+  pure $ fmap (:currPath) validPaths
+  where
+    getHeight (x, y)= M.safeGet x y heighMap
+    eliminateInvalidPath (_, Nothing) = Nothing
+    eliminateInvalidPath (pos, Just height)
+      | (height - heighMap M.! (row, col)) > 1 = Nothing
+      | otherwise = Just pos
