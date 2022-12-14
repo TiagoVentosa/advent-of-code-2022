@@ -1,3 +1,4 @@
+{-# LANGUAGE TupleSections #-}
 module Prob12 where
 
 import Data.Void (Void)
@@ -5,7 +6,7 @@ import Text.Megaparsec hiding (State)
 import Data.Matrix as M
 import Data.Char (ord)
 import Text.Megaparsec.Char (newline)
-import Data.List (elemIndex, elemIndices)
+import Data.List (elemIndex, elemIndices, singleton)
 import Data.Maybe (isJust, fromJust, mapMaybe)
 import Control.Monad.State (get, modify, State, evalState)
 import qualified Data.Set as S
@@ -29,7 +30,13 @@ solution matrixList = let
   endPos = findEnd matrixList
   heightMap = M.fromLists $ fmap (fmap toHeight) matrixList
   in findShortestPath startPos endPos heightMap
---  in undefined
+
+solution' :: [String] -> (Path, Int)
+solution' matrixList = let
+  startPoss = findStarts' matrixList
+  endPos = findEnd matrixList
+  heightMap = M.fromLists $ fmap (fmap toHeight) matrixList
+  in findShortestPath' startPoss endPos heightMap
 
 findStart :: [String] -> Position
 findStart = find 'S'
@@ -47,6 +54,12 @@ find char matrixList = let
   line = elemIndex column firstStep
   in (fromJust line + 1, fromJust column + 1)
 
+find' :: Char -> [String] -> [Position]
+find' char matrixList = let
+  columns = fmap (elemIndices char) matrixList :: [[Int]]
+  zipRows = zip [0..] columns  :: [(Int, [Int])]
+  in (\(row,col) -> (row + 1, col +1)) <$> concatMap (\(row, cols) -> fmap (row,) cols) zipRows
+
 toHeight :: Char -> Int
 toHeight 'S' = 0
 toHeight 'E' = 25
@@ -54,8 +67,12 @@ toHeight l = ord l - ord 'a'
 
 findShortestPath :: Position -> Position -> M.Matrix Int -> (Path, Int)
 findShortestPath start end heightMap =
---  undefined
   evalState (findPathsAndLength start end heightMap) $ S.singleton start
+
+findShortestPath' :: [Position] -> Position -> M.Matrix Int -> (Path, Int)
+findShortestPath' starts end heightMap =
+  evalState (findPathsAndLength' starts end heightMap) $ S.fromList starts
+
 
 findPathsAndLength :: Position -> Position -> M.Matrix Int -> PathsState (Path, Int)
 findPathsAndLength start end heightMap =
@@ -67,6 +84,18 @@ findPathsAndLength start end heightMap =
             | otherwise = do
                res <- traverse (calculateNextRoutes heightMap) routes :: PathsState [[Path]]
                go (iteration + 1) $ concat res
+
+findPathsAndLength' :: [Position] -> Position -> M.Matrix Int -> PathsState (Path, Int)
+findPathsAndLength' starts end heightMap =
+  go 0 $ fmap singleton starts
+    where go iteration routes
+            | end `elem` fmap head routes = let
+              route = head $ filter ((== end) . head) routes
+              in pure (route, iteration)
+            | otherwise = do
+               res <- traverse (calculateNextRoutes heightMap) routes :: PathsState [[Path]]
+               go (iteration + 1) $ concat res
+
 
 calculateNextRoutes :: M.Matrix Int -> Path -> PathsState [Path]
 calculateNextRoutes _ [] = error "shouldn't be called"
