@@ -14,13 +14,25 @@ instance Show ValOrList where
   show (VList l) = show l
 
 inputParser :: Parser [([ValOrList], [ValOrList])]
-inputParser = ((,) <$> parseList <*> parseList) `sepBy` newline
+inputParser = 
+  ((,) <$> 
+   parseList <* newline <*> 
+   parseList <* optional newline
+  ) `sepBy` newline
 
 parseList :: Parser [ValOrList]
-parseList = between (char '[') (char ']') (parseElement `sepBy` char ',') <* optional newline
+parseList = between (char '[') (char ']') (parseElement `sepBy` char ',')
 
 parseElement :: Parser ValOrList
 parseElement = (Val <$> decimal) <|> (VList <$> parseList)
 
-solution :: a -> a
-solution = id
+-- list comparison in haskell already works as the problem wants 
+-- (check first element, if equal check next, if one list ends its considered smaller)
+instance Ord ValOrList where
+  compare (Val a) (Val b) = compare a b
+  compare (VList a) (VList b) = compare a b
+  compare a@(Val _) (VList b) = compare [a] b
+  compare (VList a) b@(Val _) = compare a [b]
+
+solution :: [([ValOrList], [ValOrList])] -> Int
+solution = sum . fmap fst . filter snd . zip [1..] . fmap (uncurry (<))  
