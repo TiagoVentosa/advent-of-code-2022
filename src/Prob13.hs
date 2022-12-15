@@ -4,6 +4,7 @@ import Data.Void (Void)
 import Text.Megaparsec hiding (State)
 import Text.Megaparsec.Char ( newline, char)
 import Text.Megaparsec.Char.Lexer (decimal)
+import Data.List (sort)
 
 type Parser = Parsec Void String
 data ValOrList = Val Int | VList [ValOrList] deriving (Eq)
@@ -14,9 +15,9 @@ instance Show ValOrList where
   show (VList l) = show l
 
 inputParser :: Parser [([ValOrList], [ValOrList])]
-inputParser = 
-  ((,) <$> 
-   parseList <* newline <*> 
+inputParser =
+  ((,) <$>
+   parseList <* newline <*>
    parseList <* optional newline
   ) `sepBy` newline
 
@@ -35,4 +36,11 @@ instance Ord ValOrList where
   compare (VList a) b@(Val _) = compare a [b]
 
 solution :: [([ValOrList], [ValOrList])] -> Int
-solution = sum . fmap fst . filter snd . zip [1..] . fmap (uncurry (<))  
+solution = sum . fmap fst . filter snd . zip [1..] . fmap (uncurry (<))
+
+solution' :: [([ValOrList], [ValOrList])] -> Int
+solution' = let
+  div1 = [VList [Val 2]]
+  div2 = [VList [Val 6]]
+  in product . take 2 . fmap fst . filter ((`elem` [div1,div2]) . snd) .
+   zip [1..] . sort . (div1:) . (div2:) . concatMap (\(x, y) -> [x, y])
