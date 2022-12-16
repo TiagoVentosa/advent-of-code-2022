@@ -10,6 +10,7 @@ import qualified Data.List.NonEmpty as NE
 import qualified Data.Set as S
 import Text.Megaparsec.Char (newline, char, string)
 import Text.Megaparsec.Char.Lexer (decimal)
+import Data.Maybe (fromMaybe)
 
 type Parser = Parsec Void String
 type Position = (Int,Int)
@@ -32,19 +33,44 @@ parseEdges = NE.fromList <$> ((,) <$> decimal <* char ',' <*> decimal) `sepBy1` 
 
 solution :: Set Position -> Int
 solution = go 0
-  where go nOfSand obstacles =
-          case dropSandUnit obstacles of
-            Just newObs -> go (nOfSand + 1) newObs
-            Nothing -> nOfSand
+  where 
+    go nOfSand obstacles =
+      case dropSandUnit obstacles of
+        Just newObs -> go (nOfSand + 1) newObs
+        Nothing -> nOfSand
+            
+solution' :: Set Position -> Int
+solution' rocks = go 0 rocks
+  where 
+    floorY = S.findMax (S.map snd rocks) + 2
+    go nOfSand obstacles
+      | newObs <- dropSandUnit' obstacles floorY, 
+        (500, 0) `S.notMember` newObs             = go (nOfSand + 1) newObs
+      | otherwise                                 = nOfSand + 1
 
 dropSandUnit :: Set Position -> Maybe (Set Position)
 dropSandUnit obstacles = newObstacles (500, 0)
-  where newObstacles (x, y) = do
-          (_, obsY) <- S.lookupMin $ S.filter (\(sx, sy) -> sx == x && sy > y) obstacles
-          newObstacles' obsY
-          where newObstacles' obsY -- new func just because of nicer syntax for if then else
-                  | (obsY - y) /= 1 = newObstacles (x, obsY - 1)
-                  | (x-1, y+1) `S.notMember` obstacles = newObstacles (x-1, y+1)
-                  | (x+1, y+1) `S.notMember` obstacles = newObstacles (x+1, y+1)
-                  | otherwise = Just $ S.insert (x, y) obstacles
+  where 
+    newObstacles (x, y) = do
+      (_, obsY) <- S.lookupMin $ S.filter (\(sx, sy) -> sx == x && sy > y) obstacles
+      newObstacles' obsY
+      where 
+        newObstacles' obsY -- new func just because of nicer syntax for if then else
+          | (obsY - y) /= 1                    = newObstacles (x, obsY - 1)
+          | (x-1, y+1) `S.notMember` obstacles = newObstacles (x-1, y+1)
+          | (x+1, y+1) `S.notMember` obstacles = newObstacles (x+1, y+1)
+          | otherwise                          = Just $ S.insert (x, y) obstacles
 
+dropSandUnit' :: Set Position -> Int -> Set Position
+dropSandUnit' obstacles floorY = newObstacles (500, 0)
+  where 
+    newObstacles (x, y) = fromMaybe (S.insert (x, floorY - 1) obstacles) $ checkBeforeFloor (x, y)
+    checkBeforeFloor (x, y) = do
+      (_, obsY) <- S.lookupMin $ S.filter (\(sx, sy) -> sx == x && sy > y) obstacles
+      Just $ checkBeforeFloor' obsY
+      where 
+        checkBeforeFloor' obsY -- new func just because of nicer syntax for if then else
+          | (obsY - y) /= 1                    = newObstacles (x, obsY - 1)
+          | (x-1, y+1) `S.notMember` obstacles = newObstacles (x-1, y+1)
+          | (x+1, y+1) `S.notMember` obstacles = newObstacles (x+1, y+1)
+          | otherwise                          = S.insert (x, y) obstacles
