@@ -1,3 +1,5 @@
+{-# LANGUAGE PartialTypeSignatures #-}
+
 module Prob17 where
 
 import Data.Void (Void)
@@ -8,6 +10,8 @@ import Data.Maybe (fromMaybe)
 import Control.Monad (guard)
 import Data.List (sortOn)
 import Data.Ord (Down(..))
+import Data.Bifunctor (bimap, first)
+import Control.Arrow ((&&&))
 
 type Parser = Parsec Void String
 data Jet = JLeft | JRight deriving (Show)
@@ -95,3 +99,58 @@ isColumnsOverlapping rock droppedRocks = let
 getMaxHeight :: Rows -> Int
 getMaxHeight rows = maximum $
   fmap (($ rows) . (head .)) [rFirst, rSecond, rThird, rFourth, rFifth, rSixth, rSeventh]
+
+getMaxHeights :: Rows -> [Int]
+getMaxHeights rows = fmap (($ rows) . (head .)) [rFirst, rSecond, rThird, rFourth, rFifth, rSixth, rSeventh]
+
+
+solution' :: [Jet] -> Int
+solution' jetPattern = let
+  jetRockHeighList :: [((Int, Int), ([Int], Int))]
+  jetRockHeighList = map (bimap (first $ fst . head) (getMaxHeights &&& getMaxHeight)) $
+    scanl settleRock' ((cycle $ zip [1..] jetPattern, 0), Rows [0] [0] [0] [0] [0] [0] [0]) rocks'
+  jetRockHeighDifList = zipWith
+    (\(_,(prevHeights, prevHeight)) (numbers, (heights, height)) -> (numbers, (zipWith (-) heights prevHeights, height - prevHeight)))
+    jetRockHeighList $ tail jetRockHeighList
+  (startHeightGains, cycleHeightGains) = bimap (fmap $ snd . snd) (fmap $ snd . snd) $ findCycle jetRockHeighDifList
+  in sum startHeightGains +
+    (((1000000000000 - length startHeightGains) `div` length cycleHeightGains) * sum cycleHeightGains) +
+    sum (take ((1000000000000 - length startHeightGains) `mod` length cycleHeightGains) cycleHeightGains)
+
+settleRock' :: (([(Int, Jet)], Int), Rows) -> (Int, Int -> Rows) -> (([(Int, Jet)], Int), Rows)
+settleRock' ((jets, _), droppedRocks) (rockNum,generateRock) = applyJet jets (generateRock $ 4 + getMaxHeight droppedRocks)
+  where applyJet [] _ = error "impossible. jets can't reach the end"
+        applyJet ((_,jet):restJets) rock = dropRock restJets $ fromMaybe rock $ do
+           shiftedRock <- shift jet rock
+           guard $ not $ isOverlapping shiftedRock droppedRocks
+           pure shiftedRock
+        dropRock [] _ = error "impossible. jets can't reach the end"
+        dropRock jets' rock = let
+          shifted = shiftDown rock
+          in if isOverlapping shifted droppedRocks
+             then ((jets', rockNum), rock `addTo` droppedRocks)
+             else applyJet jets' shifted
+
+rocks' :: [(Int, Int -> Rows)]
+rocks' = cycle $ zip [1..] [
+  \y -> Rows [] [] [y] [y] [y] [y] [],
+  \y -> Rows [] [] [y+1] [y+2, y+1, y] [y+1] [] [],
+  \y -> Rows [] [] [y] [y] [y+2, y+1, y] [] [],
+  \y -> Rows [] [] [y+3, y+2, y+1, y] [] [] [] [],
+  \y -> Rows [] [] [y+1, y] [y+1, y] [] [] []
+  ]
+
+
+-- copy paste from https://wiki.haskell.org/Floyd's_cycle-finding_algorithm
+findCycle :: Eq a => [a] -> ([a],[a])
+findCycle xxs = fCycle xxs xxs
+  where fCycle (x:xs) (_:y:ys)
+         | x == y              = fStart xxs xs
+         | otherwise           = fCycle xs ys
+        fCycle _      _        = (xxs,[]) -- not cyclic
+        fStart (x:xs) (y:ys)
+         | x == y              = ([], x:fLength x xs)
+         | otherwise           = let (as,bs) = fStart xs ys in (x:as,bs)
+        fLength x (y:ys)
+         | x == y              = []
+         | otherwise           = y:fLength x ys
